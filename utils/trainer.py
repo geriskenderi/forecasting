@@ -1,6 +1,5 @@
 import torch
-import torch.nn as nn
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # Set up CUDA
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # Set up CUDA
 
 class Trainer:
     # A helper class to train PyTorch DL models
