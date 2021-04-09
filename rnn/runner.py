@@ -18,11 +18,14 @@ np.random.seed(1)
 
 # Experiment parameters
 rnn_type = 'GRU'
+continuous_cols = ['T', 'RH', 'AH']
+categorical_cols = []
+target_col = 'PT08.S1(CO)'
 bidirectional = True
 batch_size = 256
 input_len = 20
 forecast_horizon = 4
-input_dim = 1
+input_dim = len(continuous_cols) + len(categorical_cols) + 1
 output_dim = 1
 hidden_dim = 64
 num_layers = 2
@@ -34,10 +37,10 @@ df = pd.read_csv(Path('../data/air_quality_simplified.csv'), index_col=['DT'])
 
 # Univariate or multivariate
 if input_dim == 1:
-    dataset = dataloader.UnivariateTSDataset(df, "PT08.S1(CO)", input_len, forecast_horizon)
+    dataset = dataloader.UnivariateTSDataset(df, target_col, input_len, forecast_horizon)
 else:
-    dataset = dataloader.MultivariateTSDataset(df, "PT08.S1(CO)", input_len, forecast_horizon)
-
+    dataset = dataloader.MultivariateTSDataset(df, target_col, continuous_cols, categorical_cols, input_len,
+                                               forecast_horizon)
 train_dataset, train_loader, test_dataset, test_loader = dataset.get_loaders(batch_size=batch_size)
 
 # Define models and training objects

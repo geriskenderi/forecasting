@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
@@ -58,7 +59,6 @@ class UnivariateTSDataset(object):
         :return: DataLoaders associated to training and testing data
         '''
         train, test = self.preprocess_data()
-
         train_dataset = self.frame_series(train)
         test_dataset = self.frame_series(test)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
@@ -68,39 +68,44 @@ class UnivariateTSDataset(object):
 
 
 class MultivariateTSDataset(object):
-    def __init__(self, data, categorical_cols, target_col, seq_length, horizon=1):
+    def __init__(self, data, target_col, continuous_cols, categorical_cols, input_len, forecast_horizon):
         '''
         :param data: pandas.DataFrame containing the time series
-        :param categorical_cols: name of the categorical columns, if None pass empty list
         :param target_col: name of the targeted column
-        :param seq_length: window length to use
-        :param horizon: window length to predict
+        :param continuous_cols: list of the names of the continuous (numerical) columns
+        :param categorical_cols: list of the names of the categorical columns, if None pass empty list
+        :param input_len: window length to use
+        :param forecast_horizon: window length to predict
         '''
         self.data = data
         self.categorical_cols = categorical_cols
-        self.numerical_cols = list(set(data.columns) - set(categorical_cols) - set(target_col))
+        self.continuous_cols = continuous_cols + [target_col]
         self.target_col = target_col
-        self.seq_length = seq_length
-        self.prediction_window = horizon
+        self.input_len = input_len
+        self.forecast_horizon = forecast_horizon
         self.preprocessor = None
 
     def preprocess_data(self):
         '''Preprocessing function'''
-        X = self.data.drop(self.target_col, axis=1)
+        X = self.data[self.continuous_cols]
         y = self.data[self.target_col]
 
-        self.preprocess = ColumnTransformer(
-            [("scaler", MinMaxScaler(), self.numerical_cols),
+        # Scale target data first
+        y_scaler = MinMaxScaler()
+        y = y_scaler.fit_transform(y.values.reshape(-1, 1))
+
+        self.preprocessor = ColumnTransformer(
+            [("scaler", MinMaxScaler(), self.continuous_cols),
              ("encoder", OneHotEncoder(), self.categorical_cols)],
             remainder="passthrough"
         )
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, shuffle=False)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=False)
         X_train = self.preprocessor.fit_transform(X_train)
-        X_test = self.preprocessor.transform(X_test)
+        X_test = self.preprocessor.fit_transform(X_test)
 
         if self.target_col:
-            return X_train, X_test, y_train.values, y_test.values
+            return X_train, X_test, y_train, y_test
         return X_train, X_test
 
     def frame_series(self, X, y=None):
@@ -113,19 +118,18 @@ class MultivariateTSDataset(object):
         nb_obs, nb_features = X.shape
         features, target, y_hist = [], [], []
 
-        for i in range(1, nb_obs - self.seq_length - self.prediction_window):
-            features.append(torch.FloatTensor(X[i:i + self.seq_length, :]).unsqueeze(0))
+        for i in range(1, nb_obs - self.input_len - self.forecast_horizon):
+            features.append(torch.FloatTensor(X[i:i + self.input_len, :]).unsqueeze(0))
 
         features_var = torch.cat(features)
 
         if y is not None:
-            for i in range(1, nb_obs - self.seq_length - self.prediction_window):
+            for i in range(1, nb_obs - self.input_len - self.forecast_horizon):
                 target.append(
-                    torch.tensor(y[i + self.seq_length:i + self.seq_length + self.prediction_window]))
-                y_hist.append(
-                    torch.tensor(y[i + self.seq_length - 1:i + self.seq_length + self.prediction_window - 1]))
-            target_var, y_hist_var = torch.cat(target), torch.cat(y_hist)
-            return TensorDataset(features_var, target_var, y_hist_var)
+                    torch.FloatTensor(y[i + self.input_len:i + self.input_len + self.forecast_horizon]).unsqueeze(0))
+            target_var = torch.cat(target)
+            return TensorDataset(features_var, target_var)
+
         return TensorDataset(features_var)
 
     def get_loaders(self, batch_size: int):
@@ -138,7 +142,7 @@ class MultivariateTSDataset(object):
 
         train_dataset = self.frame_series(X_train, y_train)
         test_dataset = self.frame_series(X_test, y_test)
-
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-        return train_loader, test_loader
+
+        return train_dataset, train_loader, test_dataset, test_loader

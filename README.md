@@ -15,10 +15,10 @@ A repository containing code for models and techinques from my research in forec
 
 | Dataset | MAE | RMSE |
 |:--------|:---------------|:---------------|
-| LSTM | 0 | 0 |
-| Bi-LSTM | 0 | 0 |
-| GRU  | 0 | 0 |
-| Bi-GRU  | 0 | 0 |
+| LSTM | 0.0916 | 0.1167 |
+| Bi-LSTM | 0.0793 | 0.1032 |
+| GRU  | 0.0917 | 0.1176 |
+| Bi-GRU  | 0.0781 | 0.1013 |
 
 ## TODOs
 1. Seq2Seq encoder-decoder models
