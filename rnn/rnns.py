@@ -10,6 +10,7 @@ class LSTM(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.device = device
+        self.bidirectional = bi
 
         # Build layers
         self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout, bidirectional=bi)
@@ -17,11 +18,13 @@ class LSTM(nn.Module):
         self.fc = nn.Linear(in_fc, output_dim)
 
     def forward(self, x, future):
+        state_layers = self.num_layers * 2 if self.bidirectional else self.num_layers
+
         # Init hidden state
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
+        h0 = torch.zeros(state_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
 
         # Init cell state
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
+        c0 = torch.zeros(state_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
 
         # LSTM cell outputs and current states
         out, (ht, ct) = self.lstm(x, (h0.detach(), c0.detach()))
@@ -40,6 +43,7 @@ class GRU(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.device = device
+        self.bidirectional = bi
 
         # Build layers
         self.gru = nn.GRU(input_dim, hidden_dim, num_layers, dropout=dropout, batch_first=True, bidirectional=bi)
@@ -47,10 +51,12 @@ class GRU(nn.Module):
         self.fc = nn.Linear(in_fc, output_dim)
 
     def forward(self, x, future):
-        # Init hidden state
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
+        state_layers = self.num_layers * 2 if self.bidirectional else self.num_layers
 
-        # LSTM cell outputs and current states
+        # Init hidden state
+        h0 = torch.zeros(state_layers, x.size(0), self.hidden_dim).requires_grad_().to(self.device)
+
+        # GRU cell outputs and current states
         out, ht = self.gru(x, h0.detach())
 
         # Take the wanted future steps through the linear layer
