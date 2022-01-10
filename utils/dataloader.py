@@ -5,98 +5,38 @@ from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
 
-
-class UnivariateTSDataset(object):
-    def __init__(self, data, target_col, input_len, forecast_horizon):
+class TSDataset(object):
+    def __init__(self, data, continuous_cols_idx, categorical_cols_idx, 
+    target_cols_idx, input_len, forecast_horizon):
         '''
         :param data: pandas.DataFrame containing the time series
-        :param target_col: name of the targeted column
-        :param input_len: window length to use
-        :param forecast_horizon: window length to predict
-        '''
+        :param continuous_cols_idx: list of the indices of the continuous columns
+        :param categorical_cols_idx: list of the indices of the categorical columns (if None == empty list)
+        :param target_cols_idx: list of the indices of the target columns (variables to be forecasted)
+        :param input_len: length of input time-series
+        :param forecast_horizon: length of forecasted series
 
-        self.data = data
-        self.target_col = target_col
-        self.input_len = input_len
-        self.forecast_horizon = forecast_horizon
-
-    def preprocess_data(self):
-        '''Preprocessing function'''
-        ts = self.data[self.target_col].values
-        scaler = MinMaxScaler()
-        y = scaler.fit_transform(ts.reshape(-1, 1))
-        train, test = train_test_split(y, shuffle=False)
-
-        return train, test
-
-    def frame_series(self, ts):
-        '''
-        Function used to prepare the data for time series prediction
-        :param ts: univariate time series which we need to frame
-        :return: TensorDataset
-        '''
-
-        nb_obs, nb_features = ts.shape
-        inp, target, y_hist = [], [], []
-
-        for i in range(1, nb_obs - self.input_len - self.forecast_horizon):
-            inp.append(torch.FloatTensor(ts[i:i + self.input_len, :]).unsqueeze(0))
-
-        inp_var = torch.cat(inp)
-
-        for i in range(1, nb_obs - self.input_len - self.forecast_horizon):
-            target.append(
-                torch.FloatTensor(ts[i + self.input_len:i + self.input_len + self.forecast_horizon]).unsqueeze(0))
-
-        target_var = torch.cat(target)
-
-        return TensorDataset(inp_var, target_var)
-
-    def get_loaders(self, batch_size: int):
-        '''
-        Preprocess and frame the dataset
-        :param batch_size: batch size
-        :return: DataLoaders associated to training and testing data
-        '''
-        train, test = self.preprocess_data()
-        train_dataset = self.frame_series(train)
-        test_dataset = self.frame_series(test)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-
-        return train_dataset, train_loader, test_dataset, test_loader
-
-
-class MultivariateTSDataset(object):
-    def __init__(self, data, target_col, continuous_cols, categorical_cols, input_len, forecast_horizon):
-        '''
-        :param data: pandas.DataFrame containing the time series
-        :param target_col: name of the targeted column
-        :param continuous_cols: list of the names of the continuous (numerical) columns
-        :param categorical_cols: list of the names of the categorical columns, if None pass empty list
-        :param input_len: window length to use
-        :param forecast_horizon: window length to predict
         '''
         self.data = data
-        self.categorical_cols = categorical_cols
-        self.continuous_cols = continuous_cols + [target_col]
-        self.target_col = target_col
+        self.continuous_cols_idx = continuous_cols_idx
+        self.categorical_cols_idx = categorical_cols_idx
+        self.target_cols_idx = target_cols_idx
         self.input_len = input_len
         self.forecast_horizon = forecast_horizon
         self.preprocessor = None
 
     def preprocess_data(self):
         '''Preprocessing function'''
-        X = self.data[self.continuous_cols]
-        y = self.data[self.target_col]
+        X = self.data.iloc[:, self.continuous_cols_idx + self.categorical_cols_idx]
+        y = self.data.iloc[:, self.target_cols_idx]
 
         # Scale target data first
         y_scaler = MinMaxScaler()
         y = y_scaler.fit_transform(y.values.reshape(-1, 1))
 
         self.preprocessor = ColumnTransformer(
-            [("scaler", MinMaxScaler(), self.continuous_cols),
-             ("encoder", OneHotEncoder(), self.categorical_cols)],
+            [("scaler", MinMaxScaler(), self.continuous_cols_idx),
+             ("encoder", OneHotEncoder(), self.categorical_cols_idx)],
             remainder="passthrough"
         )
 
