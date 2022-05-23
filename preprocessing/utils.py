@@ -6,51 +6,24 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import adfuller
 
 
-def plot_rolling_stats(ts):
+def plot_rolling_stats(ts, window):
     """
     Plot the rolling stats for a single time series.
 
     Parameters:
         ts: (TimeSeries) ts data as a pandas dataframe
-
+        window: (int) temporal window for rolling statistic calculation (more or less = smoothing amount)
     Return:
         void
         Displays pyplot figure
     """
 
     plt.plot(ts, label='TS')
-    plt.plot(ts.rolling(window=52).mean(), label="rolling mean")
-    plt.plot(ts.rolling(window=52).std(), label="rolling std")
+    plt.plot(ts.rolling(window=window).mean(), label="rolling mean")
+    plt.plot(ts.rolling(window=window).std(), label="rolling std")
     plt.legend()
     plt.title('Rolling mean and std')
     plt.show()
-
-
-# Implementazione Dickey-Fuller test (verifica della 'stazionarietà' di una serie)
-def fuller_test(ts):
-    """
-    Dickey-Fuller test to check for the stationarity of a time series
-    Parameters:
-        ts: (TimeSeries) ts data as a pandas dataframe
-        article: (str) titolo del resoconto stampato
-
-    Return:
-        void
-        Prints out test information
-    """
-
-    print('Results of Dickey-Fuller Test:')
-    dftest = adfuller(ts, autolag='AIC')
-    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic', 'p-value', '#Lags Used', 'Number of Observations Used'])
-    for key, value in dftest[4].items():
-        dfoutput['Critical Value (%s)' % key] = value
-    print(dfoutput)
-    print('---------------- Results ----------------')
-    print('The data is {}stationary with 99% confidence'.format('NOT ' if dftest[4]['1%'] < dftest[0] else ''))
-    print('The data is stationary with 95% confidence'.format('NOT ' if dftest[4]['5%'] < dftest[0] else ''))
-    print('The data is stationary with 90% confidence'.format('NOT ' if dftest[4]['10%'] < dftest[0] else ''))
-    print('\n')
-
 
 def kpss_test(ts):
     """
@@ -93,9 +66,7 @@ def autocorrelation(ts, nlags):
     ax[1] = plot_pacf(ts.dropna(), ax=ax[1], lags=nlags)
     plt.show()
 
-
-# Stampa la scomposizione della serie in trend, stagionalità, residuals
-def decomposing_ts(ts):
+def decompose_ts(ts):
     """
     Performs STL decomposition of the time series and plots the results
 

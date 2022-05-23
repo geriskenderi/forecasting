@@ -22,11 +22,12 @@ def main(args):
     categorical_cols_idx = [int(x) for x in str.split(args.categorical_cols_idx, ',')] \
         if args.categorical_cols_idx != '' else []
     target_cols_idx =  [int(x) for x in str.split(args.target_cols_idx, ',')]
-    output_dim = 1 if len(target_cols_idx) == 1 else df.shape[1]
-
+    input_dim = len(continuous_cols_idx + categorical_cols_idx)
+    
     # Univariate or multivariate dataset and laoders
-    dataset = dataloader.TSDataset(df, continuous_cols_idx, categorical_cols_idx, target_cols_idx)
-    train_dataset, train_loader, test_dataset, test_loader = dataset.get_loaders(batch_size=args.batch_size)
+    dataset = dataloader.TSDataset(df, continuous_cols_idx, categorical_cols_idx, target_cols_idx,
+                                    args.input_len, args.forecast_horizon)
+    train_loader, test_loader = dataset.get_loaders(batch_size=args.batch_size)
 
     # Define models and training objects
     model = Decomper(input_dim, args.hidden_dim, args.output_dim, args.num_layers)

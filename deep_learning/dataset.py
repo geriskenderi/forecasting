@@ -9,7 +9,7 @@ class TSDataset(object):
     def __init__(self, data, continuous_cols_idx, categorical_cols_idx, 
     target_cols_idx, input_len, forecast_horizon):
         '''
-        :param data: pandas.DataFrame containing the time series
+        :param data: structure containing the time series data after pre-processing
         :param continuous_cols_idx: list of the indices of the continuous columns
         :param categorical_cols_idx: list of the indices of the categorical columns (if None == empty list)
         :param target_cols_idx: list of the indices of the target columns (variables to be forecasted)
@@ -23,16 +23,21 @@ class TSDataset(object):
         self.target_cols_idx = target_cols_idx
         self.input_len = input_len
         self.forecast_horizon = forecast_horizon
-        self.preprocessor = None
+        X_train, X_test, y_train, y_test = self.preprocess_data()
+        self.train_dataset, self.test_dataset = self.frame_series(X_train, y_train), self.frame_series(X_test, y_test)
 
     def preprocess_data(self):
         '''Preprocessing function'''
-        X = self.data.iloc[:, self.continuous_cols_idx + self.categorical_cols_idx]
+        input_cols = list(set(self.continuous_cols_idx + self.categorical_cols_idx + self.target_cols_idx))
+        X = self.data.iloc[:, input_cols]
         y = self.data.iloc[:, self.target_cols_idx]
 
         # Scale target data first
-        y_scaler = MinMaxScaler()
-        y = y_scaler.fit_transform(y.values.reshape(-1, 1))
+        ts_scaler = MinMaxScaler().fit(X.iloc[:, self.target_cols_idx])
+        X.iloc[:, self.target_cols_idx] = ts_scaler.transform(X.iloc[:, self.target_cols_idx])
+        X.iloc[:, self.continuous_cols_idx] = MinMaxScaler().fit_transform(X.iloc[:, self.continuous_cols_idx])
+        X.iloc[:, self.categorical_cols_idx] = OneHotEncoder().fit_transform(X.iloc[:, self.categorical_cols_idx])
+        y = ts_scaler.transform(y)
 
         self.preprocessor = ColumnTransformer(
             [("scaler", MinMaxScaler(), self.continuous_cols_idx),
@@ -78,11 +83,8 @@ class TSDataset(object):
         :param batch_size: batch size
         :return: DataLoaders associated to training and testing data
         '''
-        X_train, X_test, y_train, y_test = self.preprocess_data()
+        
+        train_loader = DataLoader(self.train_dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+        test_loader = DataLoader(self.test_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
 
-        train_dataset = self.frame_series(X_train, y_train)
-        test_dataset = self.frame_series(X_test, y_test)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-
-        return train_dataset, train_loader, test_dataset, test_loader
+        return train_loader, test_loader
